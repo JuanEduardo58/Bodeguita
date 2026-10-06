@@ -1,18 +1,28 @@
+from datetime import datetime
+
+from sqlalchemy import DateTime, MetaData, create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
 from app.core.config import settings
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Crea el motor de conexión usando la URL del .env
 engine = create_engine(settings.database_url)
-
-# Configura la sesión para interactuar con la base de datos
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# ¡Esta es la variable Base que Alembic está buscando!
-Base = declarative_base()
+SessionLocal = sessionmaker(bind=engine, autoflush=False)
 
 
-# Función para obtener la sesión de la base de datos en las rutas de FastAPI
+class Base(DeclarativeBase):
+    # Nombres fijos para índices y constraints: así las migraciones de Alembic son estables.
+    metadata = MetaData(
+        naming_convention={
+            "ix": "ix_%(column_0_label)s",
+            "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+            "ck": "ck_%(table_name)s_%(constraint_name)s",
+            "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+            "pk": "pk_%(table_name)s",
+        }
+    )
+    type_annotation_map = {datetime: DateTime(timezone=True)}
+
+
 def get_db():
     db = SessionLocal()
     try:

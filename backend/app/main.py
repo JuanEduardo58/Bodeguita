@@ -1,11 +1,16 @@
-from app.routers import auth
 from fastapi import FastAPI
 
-app = FastAPI(title="SysCol API")
+from app.routers import auth
 
-app.include_router(auth.router)
+# Todo vive bajo /api: el frontend (nginx o el proxy de `ng serve`) reenvía /api al backend,
+# así navegador y API comparten origen y no hace falta CORS.
+app = FastAPI(
+    title="Bodeguita API", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None
+)
+
+app.include_router(auth.router, prefix="/api")
 
 
-@app.get("/health")
-def health_check():
+@app.get("/api/health")
+def health():
     return {"status": "ok"}

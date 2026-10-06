@@ -1,199 +1,117 @@
-// ==========================
-// TABLA CATEGORIAS
-// ==========================
+// Modelo de datos de Bodeguita (migración 0001_esquema_base).
+// La fuente de verdad son los modelos en backend/app/models; este archivo los refleja
+// para verlos como diagrama en https://dbdiagram.io. Si cambias un modelo, actualiza aquí.
+// Montos: numeric(12,2). Cantidades y stock: numeric(10,3) (se vende media libra).
 
-Table Categoria {
-  id_categoria int [pk, increment]
-  nombre varchar
-  descripcion varchar [null]
-  estado boolean
+Table negocios {
+  id_negocio int [pk, increment]
+  nombre varchar(120) [not null]
+  telefono varchar(20)
+  creado_en timestamptz [not null, default: `now()`]
+  Note: 'Un colmado. Todas las tablas raíz cuelgan de aquí (SaaS).'
 }
 
-// ==========================
-// TABLA PRODUCTOS
-// ==========================
-
-Table Productos {
-  id_producto int [pk, increment]
-  id_categoria int
-  codigo_barras varchar [unique, null]
-  nombre varchar
-  marca varchar [null]
-  variante_descripcion varchar [null]
-  precio_venta decimal
-  estado boolean
-}
-
-// ==========================
-// TABLA PROVEEDORES
-// ==========================
-
-Table Proveedores {
-  id_proveedor int [pk, increment]
-  nombre varchar
-  telefono varchar
-  correo varchar [null]
-  direccion varchar
-  estado boolean
-}
-
-// ==========================
-// TABLA COMPRAS
-// ==========================
-
-Table Compras {
-  id_compra int [pk, increment]
-  numero_factura varchar
-  id_proveedor int
-  fecha date
-  subtotal decimal
-  impuesto decimal
-  total decimal
-  observaciones varchar [null]
-}
-
-// ==========================
-// TABLA DETALLE COMPRA
-// ==========================
-
-Table DetalleCompra {
-  id_detalle int [pk, increment]
-  id_compra int
-  id_producto int
-  cantidad int
-  precio_compra decimal
-  subtotal decimal
-}
-
-// ==========================
-// TABLA INVENTARIO
-// ==========================
-
-Table Inventario {
-  id_inventario int [pk, increment]
-  id_producto int
-  stock_actual int
-  stock_minimo int
-  stock_maximo int
-  ultima_actualizacion datetime
-}
-
-// ==========================
-// TABLA CLIENTES
-// ==========================
-
-Table Clientes {
-  id_cliente int [pk, increment]
-  nombre varchar
-  telefono varchar [null]
-  correo varchar [null]
-  direccion varchar [null]
-  limite_credito decimal [default: 0]     // <-- nuevo: tope de fiao permitido
-  estado boolean
-}
-
-// ==========================
-// TABLA VENTAS
-// ==========================
-
-Table Ventas {
-  id_venta int [pk, increment]
-  id_cliente int [null]
-  fecha datetime
-  subtotal decimal
-  impuesto decimal
-  total decimal
-  metodo_pago varchar          // 'efectivo', 'tarjeta', 'fiao', etc.
-}
-
-// ==========================
-// TABLA DETALLE VENTA
-// ==========================
-
-Table DetalleVenta {
-  id_detalle int [pk, increment]
-  id_venta int
-  id_producto int
-  cantidad int
-  precio_venta decimal
-  subtotal decimal
-}
-
-// ==========================
-// TABLA ROLES
-// ==========================
-
-Table Roles {
-  id_rol int [pk, increment]
-  nombre varchar
-  descripcion varchar [null]
-}
-
-// ==========================
-// TABLA USUARIOS
-// ==========================
-
-Table Usuarios {
+Table usuarios {
   id_usuario int [pk, increment]
-  id_rol int
-  nombre varchar
-  apellido varchar
-  username varchar [unique]
-  email varchar [unique]
-  password_hash varchar
-  estado boolean
+  id_negocio int [not null, ref: > negocios.id_negocio]
+  nombre varchar(100) [not null]
+  email varchar(255) [not null, unique, note: 'siempre en minúsculas']
+  password_hash varchar(255) [not null, note: 'Argon2']
+  rol varchar(20) [not null, note: "CHECK: 'dueno' | 'cajero'"]
+  activo boolean [not null, default: true]
+  creado_en timestamptz [not null, default: `now()`]
 }
 
-// ==========================
-// TABLA DEUDAS (FIAO)
-// ==========================
+Table categorias {
+  id_categoria int [pk, increment]
+  id_negocio int [not null, ref: > negocios.id_negocio]
+  nombre varchar(80) [not null]
+  activo boolean [not null, default: true]
+  indexes {
+    (id_negocio, nombre) [unique]
+  }
+}
 
-Table Deuda {
+Table productos {
+  id_producto int [pk, increment]
+  id_negocio int [not null, ref: > negocios.id_negocio]
+  id_categoria int [ref: > categorias.id_categoria]
+  nombre varchar(120) [not null]
+  codigo_barras varchar(50)
+  unidad_medida varchar(10) [not null, default: 'unidad', note: "CHECK: unidad | libra | onza | litro"]
+  precio_venta numeric(12,2) [not null]
+  precio_costo numeric(12,2) [not null, default: 0]
+  stock_actual numeric(10,3) [not null, default: 0]
+  stock_minimo numeric(10,3) [not null, default: 0, note: 'alerta de bajo inventario']
+  activo boolean [not null, default: true]
+  creado_en timestamptz [not null, default: `now()`]
+  indexes {
+    (id_negocio, codigo_barras) [unique]
+    nombre
+  }
+}
+
+Table clientes {
+  id_cliente int [pk, increment]
+  id_negocio int [not null, ref: > negocios.id_negocio]
+  nombre varchar(120) [not null]
+  telefono varchar(20) [note: 'E.164: +18095551234']
+  limite_credito numeric(12,2) [not null, default: 0]
+  acepta_whatsapp boolean [not null, default: false, note: 'opt-in exigido por Meta; requiere telefono']
+  activo boolean [not null, default: true]
+  creado_en timestamptz [not null, default: `now()`]
+}
+
+Table ventas {
+  id_venta int [pk, increment]
+  id_negocio int [not null, ref: > negocios.id_negocio]
+  id_usuario int [not null, ref: > usuarios.id_usuario, note: 'quién vendió']
+  id_cliente int [ref: > clientes.id_cliente, note: 'obligatorio si metodo_pago = fiao']
+  fecha timestamptz [not null, default: `now()`]
+  total numeric(12,2) [not null]
+  metodo_pago varchar(15) [not null, note: "CHECK: efectivo | tarjeta | transferencia | fiao"]
+  estado varchar(15) [not null, default: 'completada', note: "CHECK: completada | anulada"]
+  indexes {
+    fecha
+  }
+}
+
+Table detalle_venta {
+  id_detalle int [pk, increment]
+  id_venta int [not null, ref: > ventas.id_venta]
+  id_producto int [not null, ref: > productos.id_producto]
+  cantidad numeric(10,3) [not null, note: '> 0']
+  precio_unitario numeric(12,2) [not null, note: 'congelado al momento de la venta']
+  subtotal numeric(12,2) [not null]
+}
+
+Table deudas {
   id_deuda int [pk, increment]
-  id_cliente int
-  id_venta int [unique]           // una deuda nace de una venta al fiao
-  monto_total decimal
-  monto_pagado decimal [default: 0]
-  saldo_pendiente decimal
-  fecha_creacion datetime
-  fecha_limite date [null]        // fecha acordada de pago, si aplica
-  estado varchar                  // 'pendiente', 'parcial', 'pagada', 'vencida'
+  id_cliente int [not null, ref: > clientes.id_cliente]
+  id_venta int [not null, unique, ref: - ventas.id_venta, note: 'una deuda nace de una venta al fiao']
+  monto_total numeric(12,2) [not null]
+  saldo_pendiente numeric(12,2) [not null, note: 'CHECK: 0 <= saldo <= monto_total']
+  fecha_limite date
+  creado_en timestamptz [not null, default: `now()`]
+  Note: 'El estado (pendiente/parcial/pagada/vencida) se calcula; no se guarda.'
 }
 
-// ==========================
-// TABLA ABONOS
-// ==========================
-
-Table Abono {
+Table abonos {
   id_abono int [pk, increment]
-  id_deuda int
-  monto decimal
-  fecha datetime
-  metodo_pago varchar             // 'efectivo', 'transferencia', etc.
-  nota varchar [null]
+  id_deuda int [not null, ref: > deudas.id_deuda]
+  id_usuario int [not null, ref: > usuarios.id_usuario, note: 'quién cobró']
+  monto numeric(12,2) [not null, note: '> 0']
+  metodo_pago varchar(15) [not null, note: "CHECK: efectivo | tarjeta | transferencia"]
+  nota varchar(255)
+  fecha timestamptz [not null, default: `now()`]
 }
 
-// ==========================
-// RELACIONES
-// ==========================
-
-Ref: Productos.id_categoria > Categoria.id_categoria
-
-Ref: Compras.id_proveedor > Proveedores.id_proveedor
-
-Ref: DetalleCompra.id_compra > Compras.id_compra
-Ref: DetalleCompra.id_producto > Productos.id_producto
-
-Ref: Inventario.id_producto > Productos.id_producto
-
-Ref: Ventas.id_cliente > Clientes.id_cliente
-
-Ref: DetalleVenta.id_venta > Ventas.id_venta
-Ref: DetalleVenta.id_producto > Productos.id_producto
-
-Ref: Usuarios.id_rol > Roles.id_rol
-
-Ref: Deuda.id_cliente > Clientes.id_cliente
-Ref: Deuda.id_venta > Ventas.id_venta
-Ref: Abono.id_deuda > Deuda.id_deuda
-
+Table recordatorios_whatsapp {
+  id_recordatorio int [pk, increment]
+  id_deuda int [not null, ref: > deudas.id_deuda]
+  enviado_en timestamptz [not null, default: `now()`]
+  estado varchar(10) [not null, note: "CHECK: enviado | fallido"]
+  id_mensaje_meta varchar(100)
+  error text
+  Note: 'Evita avisos duplicados y deja traza de cada envío.'
+}
