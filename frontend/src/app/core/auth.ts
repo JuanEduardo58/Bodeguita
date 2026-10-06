@@ -28,9 +28,13 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<void> {
-    const form = new URLSearchParams({ username: email, password });
+    // El login de FastAPI (OAuth2) pide formulario, no JSON. Se manda como texto ya
+    // codificado: HttpClient no serializa URLSearchParams y HttpParams deja '+' sin codificar.
+    const form = new URLSearchParams({ username: email, password }).toString();
     const { access_token } = await firstValueFrom(
-      this.http.post<{ access_token: string }>('/api/auth/login', form),
+      this.http.post<{ access_token: string }>('/api/auth/login', form, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      }),
     );
     localStorage.setItem(CLAVE_TOKEN, access_token);
     await this.cargarUsuario();

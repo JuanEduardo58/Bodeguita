@@ -212,6 +212,21 @@ npx ng test --watch=false
 - Se pararon los contenedores de backend y frontend. La base de datos sigue en Docker.
 - Backend con `uvicorn --reload` en `:8000` y frontend con `ng serve` en `:4200`. El proxy `/api` funciona y el login de prueba responde.
 
+### 2026-10-06: servidores de desarrollo detenidos
+
+- Claude Code detuvo el backend (`uvicorn --reload`) y el frontend (`ng serve`) porque la PC se quedó con poca memoria mientras la sesión estaba inactiva. No es un error del proyecto.
+- La base de datos sigue en Docker. Para volver a levantarlos, ver §4.1.
+- Se volvieron a levantar desde la sesión de Claude a pedido del usuario. Había 4.5 GB de RAM libre de 31.8 GB. Verificado: la API responde, la app carga en `:4200` y el login por el proxy funciona.
+- El nuevo `ng serve` no pudo arrancar ("Port 4200 is already in use"): el proceso anterior no se había cerrado del todo. Se cerró ese proceso huérfano y se volvió a levantar. **Si ves ese error**, busca quién usa el puerto con `Get-NetTCPConnection -LocalPort 4200` (PowerShell) y cierra ese proceso, o arranca con otro puerto: `npx ng serve --port 4201`.
+
+### 2026-10-06: arreglado el login desde el navegador
+
+- **Síntoma:** no se podía entrar desde la app. El backend respondía `422` al `POST /api/auth/login`. Con `curl` sí funcionaba.
+- **Causa:** el login de FastAPI (OAuth2) espera un formulario (`application/x-www-form-urlencoded`). `AuthService.login` le pasaba un `URLSearchParams` a `HttpClient`, que no lo convierte a formulario, así que el backend no recibía `username` ni `password`.
+- **Arreglo** (`frontend/src/app/core/auth.ts`): el cuerpo se envía como texto ya codificado (`URLSearchParams(...).toString()`) con la cabecera `Content-Type` explícita. No se usó `HttpParams` porque deja el `+` sin codificar y rompería contraseñas que lo tengan.
+- **Test nuevo** (`auth.spec.ts`): comprueba la cabecera, el cuerpo codificado (con `@`, `+` y espacio en la contraseña) y que el token se guarde. Frontend: 3/3 tests en verde.
+- **Lección:** el login se había probado con `curl` y con los tests del backend, pero no desde el frontend real. Toda pantalla nueva se prueba en el navegador antes de darla por hecha.
+
 **Pendiente**
 - Commit y push. Los hace el usuario.
 - Que el compañero clone el repo y cree su propio `.env`.

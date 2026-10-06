@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { authInterceptor } from './auth';
+import { AuthService, authInterceptor } from './auth';
 
 describe('authInterceptor', () => {
   let http: HttpClient;
@@ -28,6 +28,18 @@ describe('authInterceptor', () => {
     expect(backend.expectOne('/api/auth/me').request.headers.get('Authorization')).toBe(
       'Bearer abc',
     );
+  });
+
+  it('el login manda un formulario, como pide el backend', async () => {
+    const login = TestBed.inject(AuthService).login('ana@colmado.do', 'a+b c');
+    const req = backend.expectOne('/api/auth/login');
+    expect(req.request.headers.get('Content-Type')).toBe('application/x-www-form-urlencoded');
+    expect(req.request.body).toBe('username=ana%40colmado.do&password=a%2Bb+c');
+    req.flush({ access_token: 'nuevo' });
+    await Promise.resolve();
+    backend.expectOne('/api/auth/me').flush({ nombre: 'Ana' });
+    await login;
+    expect(localStorage.getItem('bodeguita_token')).toBe('nuevo');
   });
 
   it('cierra la sesión si el backend responde 401', () => {
